@@ -17,43 +17,22 @@ class datadog_agent::ubuntu(
   $agent_version = 'latest',
   $other_keys = ['C7A7DA52']
 ) {
+  $packagelist = ['datadog-agent', ]
 
-  ensure_packages(['apt-transport-https'])
-  validate_array($other_keys)
-
-  if !$::datadog_agent::skip_apt_key_trusting {
-    $mykeys = concat($other_keys, [$apt_key])
-
-    ::datadog_agent::ubuntu::install_key { $mykeys:
-      before  => File['/etc/apt/sources.list.d/datadog.list'],
-    }
-
+  if !defined(Class['apt']) {
+    class { 'apt': }
   }
 
-  file { '/etc/apt/sources.list.d/datadog.list':
-    source  => 'puppet:///modules/datadog_agent/datadog.list',
-    owner   => 'root',
-    group   => 'root',
-    notify  => Exec['datadog_apt-get_update'],
-    require => Package['apt-transport-https'],
-  }
-
-  exec { 'datadog_apt-get_update':
-    command     => '/usr/bin/apt-get update',
-    refreshonly => true,
-    tries       => 2, # https://bugs.launchpad.net/launchpad/+bug/1430011 won't get fixed until 16.04 xenial
-    try_sleep   => 30,
-  }
-
-  package { 'datadog-agent-base':
-    ensure => absent,
-    before => Package['datadog-agent'],
-  }
-
-  package { 'datadog-agent':
-    ensure  => $agent_version,
-    require => [File['/etc/apt/sources.list.d/datadog.list'],
-                Exec['datadog_apt-get_update']],
+  apt::source { 'datadog.list':
+    location    => 'http://apt.datadoghq.com/',
+    release     => 'stable',
+    repos       => 'main',
+    key         => $apt_key,
+    include_src => false,
+  } ->
+  package {
+    $packagelist:
+      ensure  => latest;
   }
 
   service { 'datadog-agent':
@@ -63,5 +42,4 @@ class datadog_agent::ubuntu(
     pattern   => 'dd-agent',
     require   => Package['datadog-agent'],
   }
-
 }

@@ -4,7 +4,7 @@ define datadog_agent::integration (
   $integration = $title,
 ){
 
-  include datadog_agent
+  #include datadog_agent
 
   validate_array($instances)
   if $init_config != undef {

@@ -1,4 +1,4 @@
-# Class: datadog_agent::ubuntu
+lass: datadog_agent::ubuntu
 #
 # This class contains the DataDog agent installation mechanism for Ubuntu
 #
@@ -13,29 +13,50 @@
 #
 
 class datadog_agent::ubuntu(
-  $apt_key = '935F5A436A5A6E8788F0765B226AE980C7A7DA52',
+  $apt_key = 'A2923DFF56EDA6E76E55E492D3A80E30382E94DE',
   $agent_version = 'latest',
-  $other_keys = ['C7A7DA52']
+  $other_keys = ['935F5A436A5A6E8788F0765B226AE980C7A7DA52'],
+  $location = 'https://apt.datadoghq.com',
+  $release = 'stable',
+  $repos = 'main',
 ) {
-  $packagelist = ['datadog-agent', ]
 
-  if !defined(Class['apt']) {
-    class { 'apt': }
+  ensure_packages(['apt-transport-https'])
+  validate_array($other_keys)
+
+  if !$::datadog_agent::skip_apt_key_trusting {
+    $mykeys = concat($other_keys, [$apt_key])
+
+    ::datadog_agent::ubuntu::install_key { $mykeys:
+      before  => File['/etc/apt/sources.list.d/datadog.list'],
+    }
+
   }
 
-  apt::source { 'datadog.list':
-    location    => 'http://apt.datadoghq.com/',
-    release     => 'stable',
-    repos       => 'main',
-    key         => {
-      'id'     => $apt_key,
-      'server' => 'hkp://keyserver.ubuntu.com:80',
-    },
-    include_src => false,
-  } ->
-  package {
-    $packagelist:
-      ensure  => latest;
+  file { '/etc/apt/sources.list.d/datadog.list':
+    owner   => 'root',
+    group   => 'root',
+    content => template('datadog_agent/datadog.list.erb'),
+    notify  => Exec['datadog_apt-get_update'],
+    require => Package['apt-transport-https'],
+  }
+
+  exec { 'datadog_apt-get_update':
+    command     => '/usr/bin/apt-get update',
+    refreshonly => true,
+    tries       => 2, # https://bugs.launchpad.net/launchpad/+bug/1430011 won't get fixed until 16.04 xenial
+    try_sleep   => 30,
+  }
+
+  package { 'datadog-agent-base':
+    ensure => absent,
+    before => Package['datadog-agent'],
+  }
+
+  package { 'datadog-agent':
+    ensure  => $agent_version,
+    require => [File['/etc/apt/sources.list.d/datadog.list'],
+                Exec['datadog_apt-get_update']],
   }
 
   service { 'datadog-agent':
@@ -45,4 +66,6 @@ class datadog_agent::ubuntu(
     pattern   => 'dd-agent',
     require   => Package['datadog-agent'],
   }
+
 }
+

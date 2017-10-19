@@ -1,4 +1,4 @@
-lass: datadog_agent::ubuntu
+# Class: datadog_agent::ubuntu
 #
 # This class contains the DataDog agent installation mechanism for Ubuntu
 #
